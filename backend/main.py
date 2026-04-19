@@ -342,6 +342,40 @@ def get_assignment_for_teacher(teacher_id: str, subject_code: str) -> Optional[d
     )
 
 
+def build_student_portal_response(
+    student: dict,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+) -> dict:
+    normalized_roll_no = student["roll_no"].strip().upper()
+    query = {"roll_no": normalized_roll_no}
+    date_query = build_date_query(start_date, end_date)
+    if date_query:
+        query["date"] = date_query
+
+    raw_records = list(
+        attendance_collection.find(query, {"_id": 0}).sort([("date", 1), ("subject_code", 1)])
+    )
+    daily_records = summarize_daily_records(raw_records)
+    working_days = len(daily_records)
+    present_count = sum(1 for record in daily_records if record["status"] == "Present")
+    absent_count = sum(1 for record in daily_records if record["status"] == "Absent")
+
+    return {
+        "success": True,
+        "student": sanitize_student(student),
+        "summary": {
+            "working_days": working_days,
+            "present_count": present_count,
+            "absent_count": absent_count,
+            "attendance_percentage": calculate_percentage(present_count, working_days),
+            "start_date": start_date or "",
+            "end_date": end_date or "",
+        },
+        "records": daily_records,
+    }
+
+
 @app.post("/admin-login")
 def admin_login(payload: AdminLoginRequest) -> dict:
     if payload.username == "admin" and payload.password == "admin123":
@@ -1044,31 +1078,7 @@ def student_attendance_status(
     student = students_collection.find_one({"roll_no": normalized_roll_no}, {"_id": 0})
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
-
-    query = {"roll_no": normalized_roll_no}
-    date_query = build_date_query(start_date, end_date)
-    if date_query:
-        query["date"] = date_query
-
-    raw_records = list(attendance_collection.find(query, {"_id": 0}).sort([("date", 1), ("subject_code", 1)]))
-    daily_records = summarize_daily_records(raw_records)
-    working_days = len(daily_records)
-    present_count = sum(1 for record in daily_records if record["status"] == "Present")
-    absent_count = sum(1 for record in daily_records if record["status"] == "Absent")
-
-    return {
-        "success": True,
-        "student": sanitize_student(student),
-        "summary": {
-            "working_days": working_days,
-            "present_count": present_count,
-            "absent_count": absent_count,
-            "attendance_percentage": calculate_percentage(present_count, working_days),
-            "start_date": start_date or "",
-            "end_date": end_date or "",
-        },
-        "records": daily_records,
-    }
+    return build_student_portal_response(student, start_date=start_date, end_date=end_date)
 
 
 @app.get("/student-portal/{roll_no}")
@@ -1077,9 +1087,14 @@ def student_portal(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ) -> dict:
-    data = student_attendance_status(roll_no=roll_no, start_date=start_date, end_date=end_date)
-    data["student"] = sanitize_student(data["student"])
-    return data
+    normalized_roll_no = roll_no.strip().upper()
+    validate_roll_no(normalized_roll_no)
+
+    student = students_collection.find_one({"roll_no": normalized_roll_no}, {"_id": 0})
+    if not student:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    return build_student_portal_response(student, start_date=start_date, end_date=end_date)
 
 
 @app.get("/public-student-attendance/{portal_token}")
@@ -1092,11 +1107,7 @@ def public_student_attendance(
     if not student:
         raise HTTPException(status_code=404, detail="Attendance link is invalid or expired")
 
-    return student_attendance_status(
-        roll_no=student["roll_no"],
-        start_date=start_date,
-        end_date=end_date,
-    )
+    return build_student_portal_response(student, start_date=start_date, end_date=end_date)
 
 
 @app.get("/teacher-student-report")

@@ -3,86 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Login | Attendance System</title>
-    <link rel="stylesheet" href="style.css">
+    <meta http-equiv="refresh" content="0; url=frontend/login.html">
+    <title>Attendance System</title>
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            font-family: Arial, sans-serif;
+            background: #eef2ff;
+            color: #223042;
+        }
+
+        .redirect-card {
+            max-width: 520px;
+            margin: 24px;
+            padding: 28px;
+            border-radius: 18px;
+            background: #ffffff;
+            box-shadow: 0 18px 42px rgba(74, 108, 247, 0.12);
+            text-align: center;
+        }
+
+        a {
+            color: #2f55e7;
+            font-weight: 600;
+            text-decoration: none;
+        }
+    </style>
 </head>
-<body class="auth-body">
-    <div class="page-shell">
-        <div class="auth-card glass-card">
-            <div class="section-heading">
-                <span class="eyebrow">Attendance System</span>
-                <h1>Admin Login</h1>
-                <p>Sign in to manage students, attendance records, and reports.</p>
-            </div>
-
-            <form id="loginForm" class="form-grid">
-                <div class="input-group">
-                    <label for="username">Username</label>
-                    <input type="text" id="username" placeholder="Enter username" required>
-                </div>
-
-                <div class="input-group">
-                    <label for="password">Password</label>
-                    <input type="password" id="password" placeholder="Enter password" required>
-                </div>
-
-                <button type="submit" class="primary-btn">Login</button>
-                <p id="message" class="status-message"></p>
-            </form>
-
-            <div class="role-links">
-                <a href="student_login.html" class="ghost-btn">Student Login</a>
-                <a href="teacher_login.html" class="ghost-btn">Teacher Login</a>
-                <a href="hod_login.html" class="ghost-btn">HOD Login</a>
-            </div>
-        </div>
+<body>
+    <div class="redirect-card">
+        <h1>Advanced Attendance Management System</h1>
+        <p>Redirecting to the main login page...</p>
+        <p>If redirect nahi hota, yahan click karo:</p>
+        <p><a href="frontend/login.html">Open Login Page</a></p>
     </div>
 
-    
-
     <script>
-        const API_BASE_URL = "http://localhost:8000";
-
-        document.getElementById("loginForm").addEventListener("submit", async (event) => {
-            event.preventDefault();
-
-            const messageElement = document.getElementById("message");
-            messageElement.textContent = "Checking credentials...";
-            messageElement.className = "status-message";
-
-            const payload = {
-                username: document.getElementById("username").value.trim(),
-                password: document.getElementById("password").value.trim()
-            };
-
-            try {
-                const response = await fetch(`${API_BASE_URL}/admin-login`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.detail || "Login failed");
-                }
-
-                localStorage.setItem("attendanceAdmin", "true");
-                messageElement.textContent = data.message;
-                messageElement.className = "status-message success";
-
-                setTimeout(() => {
-                    window.location.href = "dashboard.html";
-                }, 700);
-            } catch (error) {
-                messageElement.textContent = error.message;
-                messageElement.className = "status-message error";
-            }
-        });
+        window.location.replace("frontend/login.html");
     </script>
 </body>
 </html>
-

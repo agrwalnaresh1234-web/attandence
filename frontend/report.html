@@ -130,7 +130,16 @@
     </div>
 
     <script>
-        const API_BASE_URL = window.location.origin && window.location.origin.startsWith("http") ? window.location.origin : "http://localhost:8000";
+        const API_BASE_URL = (() => {
+    const { protocol, hostname, port, origin } = window.location;
+    if ((hostname === "127.0.0.1" || hostname === "localhost") && port && port !== "8000") {
+        return `${protocol}//${hostname}:8000`;
+    }
+    if (origin && origin.startsWith("http")) {
+        return origin;
+    }
+    return "http://localhost:8000";
+})();
         let currentBranchReport = null;
 
         function ensureAuth() {

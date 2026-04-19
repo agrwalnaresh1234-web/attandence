@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Student Dashboard | Attendance System</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -14,9 +17,9 @@
                 <h1 id="studentPortalHeading">My Attendance</h1>
             </div>
             <nav class="nav-links">
-                <a href="student_dashboard.html" class="active">Dashboard</a>
+                <a href="#" id="studentDashboardLink" class="active">Dashboard</a>
                 <button id="downloadStudentPdfBtn" class="ghost-btn" type="button">Download PDF</button>
-                <button id="studentLogoutBtn" class="ghost-btn" type="button" onclick="handleStudentLogout()">Logout</button>
+                <button id="studentLogoutBtn" class="ghost-btn" type="button">Logout</button>
             </nav>
         </header>
 
@@ -87,65 +90,59 @@
     </div>
 
     <script>
-        const API_BASE_URL = window.location.origin && window.location.origin.startsWith("http") ? window.location.origin : "http://localhost:8000";
+        const API_BASE_URL = (() => {
+            const { protocol, hostname, port, origin } = window.location;
+            if ((hostname === "127.0.0.1" || hostname === "localhost") && port && port !== "8000") {
+                return `${protocol}//${hostname}:8000`;
+            }
+            if (origin && origin.startsWith("http")) {
+                return origin;
+            }
+            return "http://localhost:8000";
+        })();
+
         let studentSession = null;
         let currentPortalData = null;
-        let querySession = null;
+
+        function getFrontendPage(pageName, extraQuery = "") {
+            const isServedFromFrontend = window.location.pathname.includes("/frontend/");
+            const prefix = isServedFromFrontend ? "/frontend/" : "";
+            return `${prefix}${pageName}${extraQuery}`;
+        }
 
         function clearStudentSession() {
             try {
                 localStorage.removeItem("attendanceStudent");
                 sessionStorage.removeItem("attendanceStudent");
             } catch (error) {
-                // Ignore storage failures in file:// contexts.
+                // Ignore storage failures.
             }
         }
 
-        function handleStudentLogout() {
-            clearStudentSession();
-            window.location.replace("student_login.html?logout=1");
-        }
-
-        window.handleStudentLogout = handleStudentLogout;
-
-        function readStudentSession() {
-            let storedValue = null;
+        function saveStudentSession(student) {
+            const serialized = JSON.stringify(student);
             try {
-                storedValue = localStorage.getItem("attendanceStudent") || sessionStorage.getItem("attendanceStudent");
+                localStorage.setItem("attendanceStudent", serialized);
+                sessionStorage.setItem("attendanceStudent", serialized);
             } catch (error) {
-                storedValue = null;
+                // Ignore storage failures.
             }
-            if (!storedValue) {
-                return null;
-            }
+            studentSession = student;
+        }
 
+        function getStoredStudentSession() {
             try {
-                const parsed = JSON.parse(storedValue);
-                if (!parsed || !parsed.roll_no) {
-                    clearStudentSession();
-                    return null;
-                }
-                return parsed;
+                const raw = localStorage.getItem("attendanceStudent") || sessionStorage.getItem("attendanceStudent");
+                return raw ? JSON.parse(raw) : null;
             } catch (error) {
                 clearStudentSession();
                 return null;
             }
         }
 
-        function syncStudentSession(student) {
-            const serialized = JSON.stringify(student);
-            try {
-                localStorage.setItem("attendanceStudent", serialized);
-                sessionStorage.setItem("attendanceStudent", serialized);
-            } catch (error) {
-                // Ignore storage failures in file:// contexts.
-            }
-            studentSession = student;
-        }
-
-        function readQuerySession() {
+        function getQueryStudentSession() {
             const params = new URLSearchParams(window.location.search);
-            const rollNo = (params.get("roll_no") || "").toUpperCase();
+            const rollNo = (params.get("roll_no") || "").trim().toUpperCase();
             if (!rollNo) {
                 return null;
             }
@@ -159,22 +156,25 @@
             };
         }
 
-        function ensureStudent() {
-            querySession = readQuerySession();
-            const storedSession = readStudentSession();
+        function ensureStudentSession() {
+            const queryStudent = getQueryStudentSession();
+            const storedStudent = getStoredStudentSession();
 
-            if (querySession && querySession.roll_no) {
-                studentSession = storedSession && storedSession.roll_no === querySession.roll_no
-                    ? storedSession
-                    : querySession;
-                return;
+            if (queryStudent && queryStudent.roll_no) {
+                studentSession = storedStudent && storedStudent.roll_no === queryStudent.roll_no
+                    ? storedStudent
+                    : queryStudent;
+                saveStudentSession(studentSession);
+                return true;
             }
 
-            studentSession = storedSession;
-            if (!studentSession || !studentSession.roll_no) {
-                window.location.replace("student_login.html");
-                return;
+            if (storedStudent && storedStudent.roll_no) {
+                studentSession = storedStudent;
+                return true;
             }
+
+            window.location.replace(getFrontendPage("student_login.html", `?_v=${Date.now()}`));
+            return false;
         }
 
         function renderStudentProfile(student) {
@@ -189,52 +189,74 @@
             document.getElementById("studentProfileMeta").textContent = `${rollNo} | ${branch} | Semester ${semester}${whatsapp}`;
         }
 
+        async function readJsonResponse(response) {
+            const text = await response.text();
+            if (!text) {
+                return {};
+            }
+
+            try {
+                return JSON.parse(text);
+            } catch (error) {
+                throw new Error("Server se valid data nahi mila.");
+            }
+        }
+
+        function renderPortalData(data) {
+            currentPortalData = data;
+            saveStudentSession(data.student);
+            renderStudentProfile(data.student);
+
+            const summary = data.summary || {};
+            const records = Array.isArray(data.records) ? data.records : [];
+
+            document.getElementById("portalWorkingDays").textContent = summary.working_days ?? 0;
+            document.getElementById("portalPresentCount").textContent = summary.present_count ?? 0;
+            document.getElementById("portalAbsentCount").textContent = summary.absent_count ?? 0;
+            document.getElementById("portalAttendancePercentage").textContent = `${summary.attendance_percentage ?? 0}%`;
+
+            document.getElementById("studentPortalTableBody").innerHTML = records.length
+                ? records.map((record) => {
+                    const subjects = Array.isArray(record.subjects)
+                        ? record.subjects
+                        : (record.subject_name ? [record.subject_name] : []);
+
+                    return `
+                        <tr>
+                            <td>${record.date || "-"}</td>
+                            <td><span class="badge ${record.status === "Present" ? "badge-success" : "badge-danger"}">${record.status || "-"}</span></td>
+                            <td>${subjects.length ? subjects.join(", ") : "-"}</td>
+                        </tr>
+                    `;
+                }).join("")
+                : `<tr><td colspan="3">No attendance records found.</td></tr>`;
+        }
+
         async function loadStudentPortal() {
             const messageElement = document.getElementById("studentPortalMessage");
-            const params = new URLSearchParams();
             const startDate = document.getElementById("studentPortalStartDate").value;
             const endDate = document.getElementById("studentPortalEndDate").value;
+            const query = new URLSearchParams({ roll_no: studentSession.roll_no });
 
-            if (startDate) params.append("start_date", startDate);
-            if (endDate) params.append("end_date", endDate);
+            if (startDate) {
+                query.append("start_date", startDate);
+            }
+            if (endDate) {
+                query.append("end_date", endDate);
+            }
 
             messageElement.textContent = "Loading attendance...";
             messageElement.className = "status-message";
 
             try {
-                let response = await fetch(`${API_BASE_URL}/student-portal/${encodeURIComponent(studentSession.roll_no)}?${params.toString()}`);
-                let data = await response.json();
+                const response = await fetch(`${API_BASE_URL}/student-attendance-status?${query.toString()}`);
+                const data = await readJsonResponse(response);
 
                 if (!response.ok) {
-                    const fallbackParams = new URLSearchParams(params.toString());
-                    fallbackParams.append("roll_no", studentSession.roll_no);
-                    response = await fetch(`${API_BASE_URL}/student-attendance-status?${fallbackParams.toString()}`);
-                    data = await response.json();
+                    throw new Error(data.detail || "Attendance load nahi ho payi.");
                 }
 
-                if (!response.ok) {
-                    throw new Error(data.detail || "Unable to load attendance");
-                }
-
-                currentPortalData = data;
-                syncStudentSession(data.student);
-                renderStudentProfile(data.student);
-
-                document.getElementById("portalWorkingDays").textContent = data.summary.working_days;
-                document.getElementById("portalPresentCount").textContent = data.summary.present_count;
-                document.getElementById("portalAbsentCount").textContent = data.summary.absent_count;
-                document.getElementById("portalAttendancePercentage").textContent = `${data.summary.attendance_percentage}%`;
-
-                document.getElementById("studentPortalTableBody").innerHTML = data.records.length
-                    ? data.records.map((record) => `
-                        <tr>
-                            <td>${record.date}</td>
-                            <td><span class="badge ${record.status === "Present" ? "badge-success" : "badge-danger"}">${record.status}</span></td>
-                            <td>${record.subjects?.length ? record.subjects.join(", ") : "-"}</td>
-                        </tr>
-                    `).join("")
-                    : `<tr><td colspan="3">No attendance records found.</td></tr>`;
-
+                renderPortalData(data);
                 messageElement.textContent = "Attendance loaded successfully.";
                 messageElement.className = "status-message success";
             } catch (error) {
@@ -245,24 +267,38 @@
         }
 
         function downloadStudentPdf() {
+            const messageElement = document.getElementById("studentPortalMessage");
+
             if (!currentPortalData) {
-                document.getElementById("studentPortalMessage").textContent = "Load attendance first.";
-                document.getElementById("studentPortalMessage").className = "status-message error";
+                messageElement.textContent = "Pehle attendance load karo.";
+                messageElement.className = "status-message error";
                 return;
             }
 
             const rowsHtml = currentPortalData.records.length
-                ? currentPortalData.records.map((record) => `
-                    <tr>
-                        <td>${record.date}</td>
-                        <td>${record.status}</td>
-                        <td>${record.subjects?.length ? record.subjects.join(", ") : "-"}</td>
-                    </tr>
-                `).join("")
+                ? currentPortalData.records.map((record) => {
+                    const subjects = Array.isArray(record.subjects)
+                        ? record.subjects
+                        : (record.subject_name ? [record.subject_name] : []);
+
+                    return `
+                        <tr>
+                            <td>${record.date || "-"}</td>
+                            <td>${record.status || "-"}</td>
+                            <td>${subjects.length ? subjects.join(", ") : "-"}</td>
+                        </tr>
+                    `;
+                }).join("")
                 : `<tr><td colspan="3">No attendance records found.</td></tr>`;
 
-            const printWindow = window.open("", "_blank", "width=900,height=700");
-            printWindow.document.write(`
+            const reportWindow = window.open("", "_blank", "width=900,height=700");
+            if (!reportWindow) {
+                messageElement.textContent = "Popup block ho gaya. Browser popup allow karo.";
+                messageElement.className = "status-message error";
+                return;
+            }
+
+            reportWindow.document.write(`
                 <html>
                 <head>
                     <title>${studentSession.roll_no} Attendance Report</title>
@@ -278,13 +314,13 @@
                 </head>
                 <body>
                     <h1>Student Attendance Report</h1>
-                    <h2>${studentSession.name} (${studentSession.roll_no})</h2>
-                    <p>${studentSession.branch} | Semester ${studentSession.semester}</p>
+                    <h2>${studentSession.name || "Student"} (${studentSession.roll_no || "-"})</h2>
+                    <p>${studentSession.branch || "-"} | Semester ${studentSession.semester || "-"}</p>
                     <div class="summary">
-                        <div class="card"><strong>Working Days</strong><div>${currentPortalData.summary.working_days}</div></div>
-                        <div class="card"><strong>Present</strong><div>${currentPortalData.summary.present_count}</div></div>
-                        <div class="card"><strong>Absent</strong><div>${currentPortalData.summary.absent_count}</div></div>
-                        <div class="card"><strong>Attendance %</strong><div>${currentPortalData.summary.attendance_percentage}%</div></div>
+                        <div class="card"><strong>Working Days</strong><div>${currentPortalData.summary.working_days ?? 0}</div></div>
+                        <div class="card"><strong>Present</strong><div>${currentPortalData.summary.present_count ?? 0}</div></div>
+                        <div class="card"><strong>Absent</strong><div>${currentPortalData.summary.absent_count ?? 0}</div></div>
+                        <div class="card"><strong>Attendance %</strong><div>${currentPortalData.summary.attendance_percentage ?? 0}%</div></div>
                     </div>
                     <table>
                         <thead>
@@ -295,17 +331,39 @@
                 </body>
                 </html>
             `);
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
+            reportWindow.document.close();
+            reportWindow.focus();
+            reportWindow.print();
         }
+
+        function handleStudentLogout() {
+            clearStudentSession();
+            window.location.replace(getFrontendPage("student_login.html", `?logout=1&_v=${Date.now()}`));
+        }
+
+        document.getElementById("studentDashboardLink").addEventListener("click", (event) => {
+            event.preventDefault();
+            if (!studentSession || !studentSession.roll_no) {
+                window.location.replace(getFrontendPage("student_login.html", `?_v=${Date.now()}`));
+                return;
+            }
+
+            const params = new URLSearchParams({
+                roll_no: studentSession.roll_no || "",
+                name: studentSession.name || "",
+                branch: studentSession.branch || "",
+                semester: studentSession.semester || "",
+                whatsapp_no: studentSession.whatsapp_no || "",
+                _v: Date.now().toString()
+            });
+            window.location.replace(getFrontendPage("student_dashboard.html", `?${params.toString()}`));
+        });
 
         document.getElementById("loadStudentPortalBtn").addEventListener("click", loadStudentPortal);
         document.getElementById("downloadStudentPdfBtn").addEventListener("click", downloadStudentPdf);
         document.getElementById("studentLogoutBtn").addEventListener("click", handleStudentLogout);
 
-        ensureStudent();
-        if (studentSession) {
+        if (ensureStudentSession()) {
             renderStudentProfile(studentSession);
             loadStudentPortal();
         }
