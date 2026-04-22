@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | Attendance System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="page-shell">
+        <header class="topbar glass-card">
+            <div>
+                <span class="eyebrow">Admin Dashboard</span>
+                <h1>Attendance Control Center</h1>
+                <p>Yahan se poore attendance system ka live overview aur core operations manage kariye.</p>
+            </div>
+            <nav class="nav-links">
+                <a href="dashboard.html" class="active">Dashboard</a>
+                <a href="admin_management.html">Management</a>
+                <a href="settings.html">Settings</a>
+                <a href="add_student.html">Students</a>
+                <a href="attendance.html">Attendance</a>
+                <a href="student_status.html">Student Status</a>
+                <a href="report.html">Reports</a>
+                <button id="logoutBtn" class="ghost-btn" type="button">Logout</button>
+            </nav>
+        </header>
+
+        <main class="content-stack">
+            <section class="dashboard-hero">
+                <article class="hero-summary-card glass-card">
+                    <span class="eyebrow">System Overview</span>
+                    <h2 id="welcomeTitle">Ready to load live attendance stats</h2>
+                    <p id="dashboardLead">Backend se real-time summary load hote hi yahan updated overview dikh jayega.</p>
+                    <div class="stacked-status">
+                        <div class="mini-status">
+                            <strong>Database-backed Dashboard</strong>
+                            <span id="databaseStatus">Checking MongoDB-backed API connection...</span>
+                        </div>
+                        <div class="mini-status">
+                            <strong>Last Refresh</strong>
+                            <span id="lastRefresh">Not refreshed yet</span>
+                        </div>
+                    </div>
+                </article>
+
+                <article class="health-card glass-card">
+                    <span class="eyebrow">API Health</span>
+                    <h3 id="apiStatusLabel">Checking server...</h3>
+                    <p id="apiStatusMessage">Please wait while the dashboard verifies the running backend.</p>
+                    <div class="top-actions summary-actions">
+                        <button id="refreshBtn" class="primary-btn" type="button">Refresh Dashboard</button>
+                    </div>
+                </article>
+            </section>
+
+            <section class="stats-grid">
+                <article class="stat-card glass-card">
+                    <p>Total Students</p>
+                    <h2 id="totalStudents">0</h2>
+                </article>
+                <article class="stat-card glass-card">
+                    <p>Total Attendance Records</p>
+                    <h2 id="totalAttendance">0</h2>
+                </article>
+                <article class="stat-card glass-card">
+                    <p>Present Count</p>
+                    <h2 id="presentCount">0</h2>
+                </article>
+                <article class="stat-card glass-card">
+                    <p>Absent Count</p>
+                    <h2 id="absentCount">0</h2>
+                </article>
+                <article class="stat-card glass-card">
+                    <p>Total Subjects</p>
+                    <h2 id="totalSubjects">0</h2>
+                </article>
+                <article class="stat-card glass-card">
+                    <p>Total Teachers</p>
+                    <h2 id="totalTeachers">0</h2>
+                </article>
+                <article class="stat-card glass-card">
+                    <p>Total HODs</p>
+                    <h2 id="totalHods">0</h2>
+                </article>
+                <article class="stat-card glass-card">
+                    <p>Total Assignments</p>
+                    <h2 id="totalAssignments">0</h2>
+                </article>
+            </section>
+
+            <section class="glass-card panel-card">
+                <div class="section-heading">
+                    <span class="eyebrow">Quick Actions</span>
+                    <h2>Open your main work areas</h2>
+                    <p>Daily admin workflow ko fast rakhne ke liye direct shortcuts yahan available hain.</p>
+                </div>
+
+                <div class="quick-actions">
+                    <a class="quick-action" href="add_student.html">
+                        <strong>Student Directory</strong>
+                        <span>Add, edit, delete, aur import students.</span>
+                    </a>
+                    <a class="quick-action" href="attendance.html">
+                        <strong>Mark Attendance</strong>
+                        <span>Daily present aur absent records update kijiye.</span>
+                    </a>
+                    <a class="quick-action" href="report.html">
+                        <strong>Reports</strong>
+                        <span>Branch aur semester wise summaries aur exports.</span>
+                    </a>
+                </div>
+
+                <p id="dashboardMessage" class="status-message"></p>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE_URL = (() => {
+            const savedBase = localStorage.getItem("attendanceApiBase");
+            if (savedBase) {
+                return savedBase.replace(/\/$/, "");
+            }
+
+            const { protocol, hostname, port, origin } = window.location;
+            if ((hostname === "127.0.0.1" || hostname === "localhost") && port && port !== "8000") {
+                return `${protocol}//${hostname}:8000`;
+            }
+            if (origin && origin.startsWith("http")) {
+                return origin;
+            }
+            return "http://localhost:8000";
+        })();
+
+        async function readJsonResponse(response) {
+            const text = await response.text();
+            if (!text) {
+                return {};
+            }
+
+            try {
+                return JSON.parse(text);
+            } catch (error) {
+                throw new Error("Server se valid response nahi mila.");
+            }
+        }
+
+        function ensureAuth() {
+            if (localStorage.getItem("attendanceAdmin") !== "true") {
+                window.location.href = "login.html";
+            }
+        }
+
+        function setLastRefresh() {
+            document.getElementById("lastRefresh").textContent = new Date().toLocaleString();
+        }
+
+        async function loadHealth() {
+            const apiStatusLabel = document.getElementById("apiStatusLabel");
+            const apiStatusMessage = document.getElementById("apiStatusMessage");
+            const databaseStatus = document.getElementById("databaseStatus");
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/health`);
+                const data = await readJsonResponse(response);
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "Backend health unavailable");
+                }
+
+                apiStatusLabel.textContent = "Server connected";
+                apiStatusMessage.textContent = data.message || "Attendance Management API is running";
+                databaseStatus.textContent = "Dashboard backend active hai aur MongoDB-backed endpoints ready hain.";
+            } catch (error) {
+                apiStatusLabel.textContent = "Server not reachable";
+                apiStatusMessage.textContent = error.message;
+                databaseStatus.textContent = "Backend unavailable hone ki wajah se database stats load nahi ho pa rahe.";
+            }
+        }
+
+        async function loadStats() {
+            const refreshButton = document.getElementById("refreshBtn");
+            const messageElement = document.getElementById("dashboardMessage");
+
+            refreshButton.disabled = true;
+            refreshButton.textContent = "Refreshing...";
+            messageElement.textContent = "Dashboard stats load ho rahe hain...";
+            messageElement.className = "status-message";
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/dashboard-stats`);
+                const data = await readJsonResponse(response);
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "Unable to load dashboard statistics");
+                }
+
+                const stats = data.stats || {};
+                document.getElementById("totalStudents").textContent = stats.total_students ?? 0;
+                document.getElementById("totalAttendance").textContent = stats.total_attendance_records ?? 0;
+                document.getElementById("presentCount").textContent = stats.present_count ?? 0;
+                document.getElementById("absentCount").textContent = stats.absent_count ?? 0;
+                document.getElementById("totalSubjects").textContent = stats.total_subjects ?? 0;
+                document.getElementById("totalTeachers").textContent = stats.total_teachers ?? 0;
+                document.getElementById("totalHods").textContent = stats.total_hods ?? 0;
+                document.getElementById("totalAssignments").textContent = stats.total_assignments ?? 0;
+
+                document.getElementById("welcomeTitle").textContent = `Loaded ${stats.total_students ?? 0} students and ${stats.total_attendance_records ?? 0} attendance records`;
+                document.getElementById("dashboardLead").textContent = "Live summary backend database se aa rahi hai. Aap ab daily operations direct yahin se continue kar sakte hain.";
+                messageElement.textContent = "Dashboard successfully database se sync ho gaya.";
+                messageElement.className = "status-message success";
+                setLastRefresh();
+            } catch (error) {
+                messageElement.textContent = error.message;
+                messageElement.className = "status-message error";
+            } finally {
+                refreshButton.disabled = false;
+                refreshButton.textContent = "Refresh Dashboard";
+            }
+        }
+
+        document.getElementById("refreshBtn").addEventListener("click", async () => {
+            await loadHealth();
+            await loadStats();
+        });
+
+        document.getElementById("logoutBtn").addEventListener("click", () => {
+            localStorage.removeItem("attendanceAdmin");
+            window.location.href = "login.html";
+        });
+
+        ensureAuth();
+        loadHealth();
+        loadStats();
+    </script>
+</body>
+</html>

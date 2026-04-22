@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Student Dashboard | Attendance System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="page-shell">
+        <header class="topbar glass-card">
+            <div>
+                <span class="eyebrow">Student Portal</span>
+                <h1 id="studentPortalHeading">My Attendance</h1>
+            </div>
+            <nav class="nav-links">
+                <a href="#" id="studentDashboardLink" class="active">Dashboard</a>
+                <button id="downloadStudentPdfBtn" class="ghost-btn" type="button">Download PDF</button>
+                <button id="studentLogoutBtn" class="ghost-btn" type="button">Logout</button>
+            </nav>
+        </header>
+
+        <main class="content-stack">
+            <section class="glass-card panel-card">
+                <div class="summary-header">
+                    <div>
+                        <span class="eyebrow">Student Profile</span>
+                        <h2 id="studentProfileName">Student Overview</h2>
+                        <p id="studentProfileMeta" class="muted-text">Your attendance summary will appear here.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="glass-card panel-card">
+                <div class="filters-grid filters-grid-wide">
+                    <div class="input-group">
+                        <label for="studentPortalStartDate">Start Date</label>
+                        <input type="date" id="studentPortalStartDate">
+                    </div>
+                    <div class="input-group">
+                        <label for="studentPortalEndDate">End Date</label>
+                        <input type="date" id="studentPortalEndDate">
+                    </div>
+                    <div class="input-group align-end">
+                        <button id="loadStudentPortalBtn" type="button" class="primary-btn">Load Attendance</button>
+                    </div>
+                </div>
+                <p id="studentPortalMessage" class="status-message"></p>
+            </section>
+
+            <section class="stats-grid stats-grid-three">
+                <article class="stat-card glass-card">
+                    <p>Working Days</p>
+                    <h2 id="portalWorkingDays">0</h2>
+                </article>
+                <article class="stat-card glass-card">
+                    <p>Present</p>
+                    <h2 id="portalPresentCount">0</h2>
+                </article>
+                <article class="stat-card glass-card">
+                    <p>Absent</p>
+                    <h2 id="portalAbsentCount">0</h2>
+                </article>
+            </section>
+
+            <section class="glass-card panel-card">
+                <div class="summary-banner">
+                    <span class="summary-label">Attendance Percentage</span>
+                    <strong id="portalAttendancePercentage">0%</strong>
+                </div>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Subjects</th>
+                            </tr>
+                        </thead>
+                        <tbody id="studentPortalTableBody">
+                            <tr><td colspan="3">Load your attendance to see activity.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE_URL = (() => {
+            const { protocol, hostname, port, origin } = window.location;
+            if ((hostname === "127.0.0.1" || hostname === "localhost") && port && port !== "8000") {
+                return `${protocol}//${hostname}:8000`;
+            }
+            if (origin && origin.startsWith("http")) {
+                return origin;
+            }
+            return "http://localhost:8000";
+        })();
+
+        let studentSession = null;
+        let currentPortalData = null;
+
+        function getFrontendPage(pageName, extraQuery = "") {
+            return `${pageName}${extraQuery}`;
+        }
+
+        function clearStudentSession() {
+            try {
+                localStorage.removeItem("attendanceStudent");
+                sessionStorage.removeItem("attendanceStudent");
+            } catch (error) {
+                // Ignore storage failures.
+            }
+        }
+
+        function saveStudentSession(student) {
+            const serialized = JSON.stringify(student);
+            try {
+                localStorage.setItem("attendanceStudent", serialized);
+                sessionStorage.setItem("attendanceStudent", serialized);
+            } catch (error) {
+                // Ignore storage failures.
+            }
+            studentSession = student;
+        }
+
+        function getStoredStudentSession() {
+            try {
+                const raw = localStorage.getItem("attendanceStudent") || sessionStorage.getItem("attendanceStudent");
+                return raw ? JSON.parse(raw) : null;
+            } catch (error) {
+                clearStudentSession();
+                return null;
+            }
+        }
+
+        function getQueryStudentSession() {
+            const params = new URLSearchParams(window.location.search);
+            const rollNo = (params.get("roll_no") || "").trim().toUpperCase();
+            if (!rollNo) {
+                return null;
+            }
+
+            return {
+                roll_no: rollNo,
+                name: params.get("name") || "",
+                branch: params.get("branch") || "",
+                semester: params.get("semester") || "",
+                whatsapp_no: params.get("whatsapp_no") || ""
+            };
+        }
+
+        function ensureStudentSession() {
+            const queryStudent = getQueryStudentSession();
+            const storedStudent = getStoredStudentSession();
+
+            if (queryStudent && queryStudent.roll_no) {
+                studentSession = storedStudent && storedStudent.roll_no === queryStudent.roll_no
+                    ? { ...queryStudent, ...storedStudent }
+                    : queryStudent;
+                saveStudentSession(studentSession);
+                return true;
+            }
+
+            if (storedStudent && storedStudent.roll_no) {
+                studentSession = storedStudent;
+                return true;
+            }
+
+            window.location.replace(getFrontendPage("student_login.html", `?_v=${Date.now()}`));
+            return false;
+        }
+
+        function renderStudentProfile(student) {
+            const name = student.name || "Student";
+            const rollNo = student.roll_no || "-";
+            const branch = student.branch || "-";
+            const semester = student.semester || "-";
+            const whatsapp = student.whatsapp_no ? ` | WhatsApp ${student.whatsapp_no}` : "";
+
+            document.getElementById("studentPortalHeading").textContent = `${name} (${rollNo})`;
+            document.getElementById("studentProfileName").textContent = name;
+            document.getElementById("studentProfileMeta").textContent = `${rollNo} | ${branch} | Semester ${semester}${whatsapp}`;
+        }
+
+        async function readJsonResponse(response) {
+            const text = await response.text();
+            if (!text) {
+                return {};
+            }
+
+            try {
+                return JSON.parse(text);
+            } catch (error) {
+                throw new Error("Server se valid data nahi mila.");
+            }
+        }
+
+        function renderPortalData(data) {
+            currentPortalData = data;
+            saveStudentSession(data.student);
+            renderStudentProfile(data.student);
+
+            const summary = data.summary || {};
+            const records = Array.isArray(data.records) ? data.records : [];
+
+            document.getElementById("portalWorkingDays").textContent = summary.working_days ?? 0;
+            document.getElementById("portalPresentCount").textContent = summary.present_count ?? 0;
+            document.getElementById("portalAbsentCount").textContent = summary.absent_count ?? 0;
+            document.getElementById("portalAttendancePercentage").textContent = `${summary.attendance_percentage ?? 0}%`;
+
+            document.getElementById("studentPortalTableBody").innerHTML = records.length
+                ? records.map((record) => {
+                    const subjects = Array.isArray(record.subjects)
+                        ? record.subjects
+                        : (record.subject_name ? [record.subject_name] : []);
+
+                    return `
+                        <tr>
+                            <td>${record.date || "-"}</td>
+                            <td><span class="badge ${record.status === "Present" ? "badge-success" : "badge-danger"}">${record.status || "-"}</span></td>
+                            <td>${subjects.length ? subjects.join(", ") : "-"}</td>
+                        </tr>
+                    `;
+                }).join("")
+                : `<tr><td colspan="3">No attendance records found.</td></tr>`;
+        }
+
+        async function loadStudentPortal() {
+            const messageElement = document.getElementById("studentPortalMessage");
+            const startDate = document.getElementById("studentPortalStartDate").value;
+            const endDate = document.getElementById("studentPortalEndDate").value;
+            const loadButton = document.getElementById("loadStudentPortalBtn");
+            const query = new URLSearchParams({ roll_no: studentSession.roll_no });
+
+            if (!studentSession || !studentSession.roll_no) {
+                messageElement.textContent = "Student session missing hai. Dobara login karo.";
+                messageElement.className = "status-message error";
+                setTimeout(() => {
+                    window.location.replace(getFrontendPage("student_login.html", `?_v=${Date.now()}`));
+                }, 900);
+                return;
+            }
+
+            if (startDate && endDate && startDate > endDate) {
+                messageElement.textContent = "Start date end date se badi nahi ho sakti.";
+                messageElement.className = "status-message error";
+                return;
+            }
+
+            if (startDate) {
+                query.append("start_date", startDate);
+            }
+            if (endDate) {
+                query.append("end_date", endDate);
+            }
+
+            messageElement.textContent = "Loading attendance...";
+            messageElement.className = "status-message";
+            loadButton.disabled = true;
+            loadButton.textContent = "Loading...";
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/student-attendance-status?${query.toString()}`);
+                const data = await readJsonResponse(response);
+
+                if (!response.ok) {
+                    throw new Error(data.detail || "Attendance load nahi ho payi.");
+                }
+
+                renderPortalData(data);
+                messageElement.textContent = "Attendance loaded successfully.";
+                messageElement.className = "status-message success";
+            } catch (error) {
+                document.getElementById("studentPortalTableBody").innerHTML = `<tr><td colspan="3">${error.message}</td></tr>`;
+                messageElement.textContent = error.message;
+                messageElement.className = "status-message error";
+            } finally {
+                loadButton.disabled = false;
+                loadButton.textContent = "Load Attendance";
+            }
+        }
+
+        function downloadStudentPdf() {
+            const messageElement = document.getElementById("studentPortalMessage");
+
+            if (!currentPortalData) {
+                messageElement.textContent = "Pehle attendance load karo.";
+                messageElement.className = "status-message error";
+                return;
+            }
+
+            const rowsHtml = currentPortalData.records.length
+                ? currentPortalData.records.map((record) => {
+                    const subjects = Array.isArray(record.subjects)
+                        ? record.subjects
+                        : (record.subject_name ? [record.subject_name] : []);
+
+                    return `
+                        <tr>
+                            <td>${record.date || "-"}</td>
+                            <td>${record.status || "-"}</td>
+                            <td>${subjects.length ? subjects.join(", ") : "-"}</td>
+                        </tr>
+                    `;
+                }).join("")
+                : `<tr><td colspan="3">No attendance records found.</td></tr>`;
+
+            const reportWindow = window.open("", "_blank", "width=900,height=700");
+            if (!reportWindow) {
+                messageElement.textContent = "Popup block ho gaya. Browser popup allow karo.";
+                messageElement.className = "status-message error";
+                return;
+            }
+
+            reportWindow.document.write(`
+                <html>
+                <head>
+                    <title>${studentSession.roll_no} Attendance Report</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 24px; color: #1f2933; }
+                        h1, h2 { margin-bottom: 8px; }
+                        .summary { display: flex; gap: 24px; margin: 18px 0; flex-wrap: wrap; }
+                        .card { border: 1px solid #d1d5db; border-radius: 12px; padding: 12px 16px; min-width: 160px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+                        th, td { border: 1px solid #d1d5db; padding: 10px; text-align: left; }
+                        th { background: #f3f4f6; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Student Attendance Report</h1>
+                    <h2>${studentSession.name || "Student"} (${studentSession.roll_no || "-"})</h2>
+                    <p>${studentSession.branch || "-"} | Semester ${studentSession.semester || "-"}</p>
+                    <div class="summary">
+                        <div class="card"><strong>Working Days</strong><div>${currentPortalData.summary.working_days ?? 0}</div></div>
+                        <div class="card"><strong>Present</strong><div>${currentPortalData.summary.present_count ?? 0}</div></div>
+                        <div class="card"><strong>Absent</strong><div>${currentPortalData.summary.absent_count ?? 0}</div></div>
+                        <div class="card"><strong>Attendance %</strong><div>${currentPortalData.summary.attendance_percentage ?? 0}%</div></div>
+                    </div>
+                    <table>
+                        <thead>
+                            <tr><th>Date</th><th>Status</th><th>Subjects</th></tr>
+                        </thead>
+                        <tbody>${rowsHtml}</tbody>
+                    </table>
+                </body>
+                </html>
+            `);
+            reportWindow.document.close();
+            reportWindow.focus();
+            reportWindow.print();
+        }
+
+        function handleStudentLogout() {
+            clearStudentSession();
+            window.location.replace(getFrontendPage("student_login.html", `?logout=1&_v=${Date.now()}`));
+        }
+
+        document.getElementById("studentDashboardLink").addEventListener("click", (event) => {
+            event.preventDefault();
+            if (!studentSession || !studentSession.roll_no) {
+                window.location.replace(getFrontendPage("student_login.html", `?_v=${Date.now()}`));
+                return;
+            }
+
+            const params = new URLSearchParams({
+                roll_no: studentSession.roll_no || "",
+                name: studentSession.name || "",
+                branch: studentSession.branch || "",
+                semester: studentSession.semester || "",
+                whatsapp_no: studentSession.whatsapp_no || "",
+                _v: Date.now().toString()
+            });
+            window.location.replace(getFrontendPage("student_dashboard.html", `?${params.toString()}`));
+        });
+
+        document.getElementById("loadStudentPortalBtn").addEventListener("click", loadStudentPortal);
+        document.getElementById("downloadStudentPdfBtn").addEventListener("click", downloadStudentPdf);
+        document.getElementById("studentLogoutBtn").addEventListener("click", handleStudentLogout);
+
+        if (ensureStudentSession()) {
+            renderStudentProfile(studentSession);
+            loadStudentPortal();
+        }
+    </script>
+</body>
+</html>
