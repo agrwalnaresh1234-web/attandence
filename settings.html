@@ -73,9 +73,9 @@
                         <pre><code id="settingsCommands">$env:TWILIO_ACCOUNT_SID="your_sid"
 $env:TWILIO_AUTH_TOKEN="your_token"
 $env:TWILIO_WHATSAPP_FROM="whatsapp:+917024899669"
-$env:PUBLIC_ATTENDANCE_URL="http://127.0.0.1:5500/frontend/attendance_link.html"
-$env:STUDENT_PORTAL_URL="http://127.0.0.1:5500/frontend/student_login.html"
-.\venv\Scripts\python.exe -m uvicorn backend.main:app --reload</code></pre>
+$env:PUBLIC_ATTENDANCE_URL="http://127.0.0.1:8000/attendance_link.html"
+$env:STUDENT_PORTAL_URL="http://127.0.0.1:8000/student_login.html"
+python -m uvicorn main:app --reload</code></pre>
                     </div>
                     <p class="helper-text">Your number `7024899669` must be onboarded and approved on WhatsApp Business Platform first.</p>
                 </section>
