@@ -4,91 +4,97 @@ Advanced Attendance Management System built with FastAPI, MongoDB, and a respons
 
 ## Features
 
-- Admin login and dashboard stats
-- Student management with edit, delete, and Excel import
+- Admin login and dashboard
+- Student add, edit, delete, and Excel import
 - Daily attendance marking
 - Branch and semester attendance reports
 - Student attendance status lookup
 - HOD and teacher account management
-- Teacher subject/class assignment workflow
+- Teacher class assignment workflow
 - Student login portal
-- Public attendance link for parent/student sharing
+- Public attendance link for parent and student viewing
 - WhatsApp-ready notification integration using Twilio environment variables
 
-## Project Structure
+## Current Project Structure
 
 ```text
 attendance_system/
-├── backend/
-│   ├── database.py
-│   └── main.py
-├── frontend/
-│   ├── login.html
-│   ├── dashboard.html
-│   ├── admin_management.html
-│   ├── settings.html
-│   ├── add_student.html
-│   ├── attendance.html
-│   ├── student_status.html
-│   ├── report.html
-│   ├── hod_login.html
-│   ├── hod_dashboard.html
-│   ├── teacher_login.html
-│   ├── teacher_dashboard.html
-│   ├── student_login.html
-│   ├── student_dashboard.html
-│   ├── attendance_link.html
-│   └── style.css
-├── requirements.txt
-└── README.md
+|-- main.py
+|-- database.py
+|-- index.html
+|-- login.html
+|-- dashboard.html
+|-- admin_management.html
+|-- settings.html
+|-- add_student.html
+|-- attendance.html
+|-- student_status.html
+|-- report.html
+|-- hod_login.html
+|-- hod_dashboard.html
+|-- teacher_login.html
+|-- teacher_dashboard.html
+|-- student_login.html
+|-- student_dashboard.html
+|-- attendance_link.html
+|-- style.css
+|-- requirements.txt
+|-- render.yaml
+|-- netlify.toml
+|-- _redirects
+`-- README.md
 ```
+
+## Tech Stack
+
+- Backend: FastAPI
+- Database: MongoDB with `pymongo`
+- Frontend: HTML, CSS, JavaScript
 
 ## Requirements
 
 - Python 3.10+
-- MongoDB running locally or a MongoDB Atlas connection string
+- MongoDB running locally or MongoDB Atlas
 
-## Installation
+## Local Setup
 
-1. Create and activate a virtual environment.
-2. Install dependencies:
+1. Create a virtual environment:
 
 ```powershell
-.\venv\Scripts\python.exe -m pip install -r requirements.txt
+python -m venv venv
 ```
 
-3. Make sure MongoDB is running locally at `mongodb://localhost:27017/`, or set a custom URI:
+2. Activate it:
+
+```powershell
+.\venv\Scripts\Activate.ps1
+```
+
+3. Install dependencies:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+4. Set MongoDB connection if needed:
 
 ```powershell
 $env:MONGO_URI="mongodb://localhost:27017/"
 ```
 
-## Run the Backend
-
-From the project root:
+5. Run the project:
 
 ```powershell
-.\venv\Scripts\python.exe -m uvicorn backend.main:app --reload
+python -m uvicorn main:app --reload
 ```
 
-API docs:
+## Open the App
 
-- `http://127.0.0.1:8000/docs`
-
-## Open the Frontend
-
-Local frontend entry points:
-
-- `frontend/login.html`
-- `frontend/student_login.html`
-- `frontend/teacher_login.html`
-- `frontend/hod_login.html`
-
-When the app runs on FastAPI, the frontend is also available directly from the same server:
-
-```text
-http://127.0.0.1:8000/frontend/login.html
-```
+- App: `http://127.0.0.1:8000`
+- API docs: `http://127.0.0.1:8000/docs`
+- Student login: `http://127.0.0.1:8000/student_login.html`
+- Teacher login: `http://127.0.0.1:8000/teacher_login.html`
+- HOD login: `http://127.0.0.1:8000/hod_login.html`
 
 ## Admin Credentials
 
@@ -97,7 +103,21 @@ Username: admin
 Password: admin123
 ```
 
-## WhatsApp Notification Setup
+## MongoDB Environment Variable
+
+The backend uses:
+
+```text
+MONGO_URI
+```
+
+Default fallback:
+
+```text
+mongodb://localhost:27017/
+```
+
+## WhatsApp Configuration
 
 Set these before starting the backend:
 
@@ -105,53 +125,52 @@ Set these before starting the backend:
 $env:TWILIO_ACCOUNT_SID="your_sid"
 $env:TWILIO_AUTH_TOKEN="your_token"
 $env:TWILIO_WHATSAPP_FROM="whatsapp:+917024899669"
-$env:PUBLIC_ATTENDANCE_URL="http://127.0.0.1:5500/frontend/attendance_link.html"
-$env:STUDENT_PORTAL_URL="http://127.0.0.1:5500/frontend/student_login.html"
+$env:PUBLIC_ATTENDANCE_URL="http://127.0.0.1:8000/attendance_link.html"
+$env:STUDENT_PORTAL_URL="http://127.0.0.1:8000/student_login.html"
+python -m uvicorn main:app --reload
 ```
 
-Then restart the backend.
+## GitHub Push
 
-## GitHub Publish Notes
-
-This project is ready to be published, but Git must be installed on the machine first. After installing Git, use:
+This folder already contains a Git repository. To publish the latest version:
 
 ```powershell
-git init
 git add .
-git commit -m "Initial commit"
+git commit -m "Prepare project for GitHub and deployment"
+git push origin master
+```
+
+If you want to rename the branch to `main`:
+
+```powershell
 git branch -M main
-git remote add origin <your-github-repo-url>
 git push -u origin main
 ```
 
-## Free Deployment Option
+## Render Deployment
 
-The easiest free deployment flow for this project is:
+This project is ready for a simple Render web service deployment.
 
-1. Push this code to GitHub.
-2. Create a free MongoDB Atlas cluster and copy the connection string.
-3. Create a Render web service from this repository.
-4. Render will use `render.yaml` and start the app with Uvicorn.
-5. Add these environment variables in Render:
+Required environment variables:
 
 ```text
 MONGO_URI=<your-mongodb-atlas-uri>
 TWILIO_ACCOUNT_SID=<optional>
 TWILIO_AUTH_TOKEN=<optional>
 TWILIO_WHATSAPP_FROM=<optional>
-PUBLIC_ATTENDANCE_URL=https://<your-render-service>.onrender.com/frontend/attendance_link.html
-STUDENT_PORTAL_URL=https://<your-render-service>.onrender.com/frontend/student_login.html
+PUBLIC_ATTENDANCE_URL=https://<your-render-service>.onrender.com/attendance_link.html
+STUDENT_PORTAL_URL=https://<your-render-service>.onrender.com/student_login.html
 ```
 
-Official references:
+Render will run:
 
-- Render free deploy docs: https://render.com/docs/free
-- Render static sites docs: https://render.com/docs/static-sites
-- MongoDB Atlas free cluster docs: https://www.mongodb.com/docs/atlas/tutorial/deploy-free-tier-cluster/
+```text
+uvicorn main:app --host 0.0.0.0 --port $PORT
+```
 
 ## Notes
 
 - Branches are limited to the configured engineering departments.
 - Semesters are limited to `1` through `6`.
-- Student roll number format is validated like `25014C04010`.
+- Roll number format is validated like `25014C04010`.
 - WhatsApp delivery depends on valid Twilio credentials and an approved WhatsApp sender.
