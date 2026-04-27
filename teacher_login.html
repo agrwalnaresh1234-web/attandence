@@ -34,15 +34,15 @@
 
     
     <script>
-        const API_BASE_URL = window.AttendanceApp.getApiBase();
         document.getElementById("teacherLoginForm").addEventListener("submit", async (event) => {
             event.preventDefault();
             const messageElement = document.getElementById("teacherLoginMessage");
             messageElement.textContent = "Checking credentials...";
             messageElement.className = "status-message";
+            const apiBaseUrl = window.AttendanceApp.getApiBase();
 
             try {
-                const response = await fetch(`${API_BASE_URL}/teacher-login`, {
+                const response = await fetch(`${apiBaseUrl}/teacher-login`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -54,6 +54,7 @@
                 if (!response.ok) {
                     throw new Error(data.detail || "Login failed");
                 }
+                window.AttendanceApp.setApiBase(apiBaseUrl);
                 localStorage.setItem("attendanceTeacher", JSON.stringify(data.teacher));
                 window.location.href = "teacher_dashboard.html";
             } catch (error) {

@@ -21,6 +21,16 @@ window.AttendanceApp = window.AttendanceApp || {
         return "http://localhost:8000";
     },
 
+    setApiBase(value) {
+        const cleaned = (value || "").trim().replace(/\/$/, "");
+        if (!cleaned) {
+            localStorage.removeItem("attendanceApiBase");
+            return "";
+        }
+        localStorage.setItem("attendanceApiBase", cleaned);
+        return cleaned;
+    },
+
     async readJsonResponse(response) {
         const text = await response.text();
         if (!text) {
@@ -32,5 +42,15 @@ window.AttendanceApp = window.AttendanceApp || {
         } catch (error) {
             throw new Error("Server se valid response nahi mila.");
         }
+    },
+
+    async checkHealth(baseUrl) {
+        const resolvedBase = (baseUrl || this.getApiBase()).replace(/\/$/, "");
+        const response = await fetch(`${resolvedBase}/health`);
+        const data = await this.readJsonResponse(response);
+        if (!response.ok) {
+            throw new Error(data.detail || "Backend health unavailable");
+        }
+        return { baseUrl: resolvedBase, data };
     }
 };
